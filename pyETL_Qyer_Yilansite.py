@@ -28,6 +28,7 @@ j_data = json.loads(res.text)     # 請求以json格式得到資訊(窮遊是以
 # pprint(j_data)
 
 for i in range(1,43) :     # 標題頁面1至42頁
+    print('=== page: ', i, '===')
     post_data['page'] = i     # postdata頁面參數
     res = requests.post(url=request_url, headers=headers, data=post_data)
     # soup = BeautifulSoup(res.text, 'html.parser')
@@ -54,8 +55,8 @@ for i in range(1,43) :     # 標題頁面1至42頁
             each_article_content = each_soup.select('#app > div > div.q-container > div > div.main-bg > div > div.compo-main > div.compo-detail-info > div.poi-detail > div > p')[0].text     # 標題主頁內容
             print(each_article_content)
             publish_time = each_soup.select('#app > div > div.q-container > div > div.main-bg > div > div.compo-main > div.compo-detail-info > div.poi-date > span')[0].text     # 文章更新時間
-            time = publish_time.strip().split('\n')[0]
-            update_time = time[7:-1].strip('[').strip(']')
+            time = publish_time.strip().split('\n')[0]     # 將更新時間去除空白部分，再以split('\n')方式去除下方空白行數並改成list
+            update_time = time[7:-1].strip('[').strip(']')     # 以slice方式取出要的日期數字再去除list的外框'[]'
             # print(type(time))
             print('更新時間: ', update_time)
             each_location = each_soup.select('#app > div > div.q-container > div > div.main-bg > div > div.compo-main > div.compo-detail-info > ul > li:nth-child(1) > div > p')[0].text     # 景點網址
@@ -73,20 +74,24 @@ for i in range(1,43) :     # 標題頁面1至42頁
                 'starLevel': 'all'
             }
             comments_detail = []
-            for k in range(0,11) :     # 每頁有10則留言
-                comment_post['poiid'] = poiid     # 置換參數
-                comment_post['page'] = str(k)     # 頁面參數
-                comment_req = requests.post(url=comment_url, headers=headers, data=comment_post)
-                comment_jsondata = json.loads(comment_req.text)
-                try :
-                    comments = comment_jsondata['data']['lists'][k]['content']
-                    # print('留言: ', comments)
-                    comments_string = '"' + comments + '"'
-                    # print(comments_string)
-                except :
-                    pass
-                comments_detail.append(comments_string)
-            print('留言: ', comments_detail)
+            comment_post['poiid'] = poiid      # 置換每個標題內的頁面網址參數
+            comment_req = requests.post(url=comment_url, headers=headers, data=comment_post)
+            comment_jsondata = json.loads(comment_req.text)
+            js_lists = comment_jsondata['data']['lists']
+
+            if len(js_lists) > 0 :     # 假設評論數大於0才執行以下迴圈
+                for k in range(0,len(js_lists)) :     # 每頁留言數量和頁碼list長度相關
+                    try :
+                        comments = comment_jsondata['data']['lists'][k]['content']
+                        # print('留言: ', comments)
+                        comments_string = '"' + comments + '"'     # 因留言中有逗號，使用.append(comments_string)會將每個字當作一個item，所以用" "將每則留言變成同一項目
+                        # print(comments_string)
+                    except :
+                        pass
+                    comments_detail.append(comments_string)
+                print('留言: ', comments_detail)
+            else:
+                comments_detail = 'NA'     # 若無留言則以NA取代
         except :
             pass
             # All_comments = dict(enumerate(comments))
@@ -113,11 +118,40 @@ for i in range(1,43) :     # 標題頁面1至42頁
         # article_data += '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------}'
         # article_jdata = json.dumps(article_data, ensure_ascii=False)
 
-        all_keys = {'文章網址', '發文時間', '標題', '評分', '景點名稱', '文章內容', '留言', '地址', '縣市'}
-        all_values = {each_article_url, update_time, each_article_title, each_article_grade, each_article_title,
-                      each_article_content, str(comments_detail), each_location, '宜蘭縣'}
-        Yilan_site_info = dict(zip(all_keys, all_values))
-        js_info = json.dumps(Yilan_site_info, ensure_ascii=False)
+        # all_keys = {'文章網址', '發文時間', '標題', '評分', '景點名稱', '文章內容', '留言', '地址', '縣市'}
+        # all_values = {each_article_url, update_time, each_article_title, each_article_grade, each_article_title,
+        #               each_article_content, str(comments_detail), each_location, '宜蘭縣'}
+        # Yilan_site_info = dict(zip(all_keys, all_values))
+        # js_info = json.dumps(Yilan_site_info, ensure_ascii=False)
 
-        with open(r'./Yilan_Qyer/Yilan_site.txt', 'a', encoding='utf-8') as w :
-            w.write(js_info)
+        save_data_dict = {'文章網址': each_article_url,
+                          '發文時間': update_time,
+                          '標題': each_article_title,
+                          '評分': each_article_grade,
+                          '景點名稱': each_article_title,
+                          '文章內容': each_article_content,
+                          '留言': str(comments_detail),
+                          '地址': each_location,
+                          '縣市': '宜蘭縣'}
+
+        save_data_js = json.dumps(save_data_dict, ensure_ascii=False)
+
+        with open(r'./Yilan_Qyer/Yilan_Qsite/Yilan_site.json', 'a', encoding='utf-8') as w :
+            w.write(save_data_js + '-----')
+
+        error_words = ['/', '|', '?', '$', '!', '@', '%', '&', '^', '#']
+        for error_words in each_article_title:
+            txt_name = each_article_title.replace('/', '_')
+            txt_name = txt_name.replace('|', '_')
+            txt_name = txt_name.replace('?', '_')
+            txt_name = txt_name.replace('$', '_')
+            txt_name = txt_name.replace('#', '_')
+            txt_name = txt_name.replace('!', '_')
+            txt_name = txt_name.replace('@', '_')
+            txt_name = txt_name.replace('%', '_')
+            txt_name = txt_name.replace('&', '_')
+            txt_name = txt_name.replace('^', '_')
+            txt_name = txt_name.replace('~', '_')
+
+        with open(r'./Yilan_Qyer/Yilan_Qsite/Yilan_%s.txt'%(txt_name), 'a', encoding='utf-8') as t :
+            t.write(save_data_js)
